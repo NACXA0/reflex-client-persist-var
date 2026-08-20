@@ -9,7 +9,7 @@ description = "Reflex的持久前端状态，由浏览器localStorage支持。�
 readme = "README.md"
 license = { text = "Apache-2.0" }
 authors = [
-    { name = "nacxa" },
+    { name = "Luis·Li" },
 ]
 keywords = ["reflex", "reflex-component", "localStorage", "persistent", "state"]
 

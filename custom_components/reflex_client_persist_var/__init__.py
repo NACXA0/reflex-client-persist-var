@@ -35,4 +35,4 @@ from .var import PersistentVar
 
 __all__ = ["PersistentVar", "PersistentState", "init_persist_var"]
 
-__version__ = "0.1.0"
+__version__ = "1.0.0"

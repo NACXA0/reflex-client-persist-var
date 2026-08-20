@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "reflex-client-persist-var"
-version = "0.1.0"
+version = "1.0.0"
 description = "Reflex的持久前端状态，由浏览器localStorage支持。首屏即时加载，高频本地写入，以及双向后端推送/拉取。"
 readme = "README.md"
 license = { text = "Apache-2.0" }
@@ -19,7 +19,7 @@ dependencies = ["reflex"]
 
 [project.urls]
 Homepage = "https://github.com/nacxa0/reflex-client-persist-var"
-Demo = "ClientPersistVar.nacxa.top"
+Demo = "https://clientpersistvar.nacxa.top"
 
 [project.optional-dependencies]
 dev = ["build", "twine"]

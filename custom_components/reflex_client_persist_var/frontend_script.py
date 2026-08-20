@@ -26,8 +26,14 @@ Reflex 0.9 会在服务器端预渲染页面，而服务器上没有 ``window``�
 ``window.__persist`` 的表达式都被包裹在 ``typeof window !== "undefined"``
 守卫中，使得服务端渲染既不会抛错，也不会执行浏览器专属逻辑。在客户端（这些
 表达式唯一真正运行的地方）守卫恒为真，行为不受影响。渲染期读取（``get`` /
-``value``）在 SSR 期间还会额外回退到已注册的默认值，这样服务端渲染出的标记
-与客户端首帧一致，hydration 也不会产生警告。
+``value``）在 SSR 期间还会额外回退到已注册的默认值。
+
+注意：生产构建（``reflex run --env prod``）默认开启预渲染，因此服务端输出的
+标记以"默认值"呈现；而客户端首帧 hydration 期间会直接读取 localStorage 中已
+持久化的值。两者只有在该 key 从未被写入时才恰好一致 —— 否则首帧可能有一次
+默认值闪现，并伴随一次 React hydration 差异提示。这是"首帧即读持久化值"这一
+核心设计的固有取舍（服务器无从得知 localStorage 内容），功能最终以客户端为准，
+后续渲染均一致。
 """
 
 from __future__ import annotations
@@ -73,11 +79,14 @@ window.__persist = window.__persist || (function () {
   function readRaw(key) {
     if (store !== null) {
       try {
-        return store.getItem(storageKey(key));
-      } catch (e) {
-        return null;
-      }
+        var raw = store.getItem(storageKey(key));
+        if (raw !== null && raw !== undefined) {
+          return raw;
+        }
+      } catch (e) { /* fall through to memCache */ }
     }
+    // store 中无值（或读不到）时回退到 memCache，保证写失败降级到内存的
+    // 新值也能被读回，而不是退回旧值 / 默认值。
     return Object.prototype.hasOwnProperty.call(memCache, key)
       ? memCache[key]
       : null;
@@ -94,7 +103,12 @@ window.__persist = window.__persist || (function () {
           console.warn("[reflex-client-persist-var] localStorage write failed for key '"
             + key + "':", e);
         }
-        // 回退到内存，让当前会话仍然能看到该值。
+        // 回退到内存：先清除 store 中该 key 的旧值（若存在），使后续 readRaw
+        // 读不到旧值而回退到下方 memCache 中的新值 —— 否则会话内读到的仍是
+        // 旧值/默认值，"当前会话仍能看到新值"的承诺无法兑现。
+        try {
+          store.removeItem(storageKey(key));
+        } catch (e2) { /* 忽略 */ }
         memCache[key] = raw;
         return false;
       }

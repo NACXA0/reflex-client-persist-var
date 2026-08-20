@@ -1,6 +1,6 @@
 # reflex-client-persist-var
 **为 [Reflex](https://reflex.dev) 提供基于浏览器 `localStorage` 的持久化前端状态管理。**
-开发`reflex-client-persist-var` 的灵感来自于[`ClientStateVar`](`https://buridan-ui.reflex.run/docs/resources/client-state-var`)。`ClientStateVar` 将状态保存在 React 的 `useState` 中——而 `useState` 的状态在每次页面刷新时都会被清除。  
+开发`reflex-client-persist-var` 的灵感来自于[ClientStateVar](https://buridan-ui.reflex.run/docs/resources/client-state-var)。`ClientStateVar` 将状态保存在 React 的 `useState` 中——而 `useState` 的状态在每次页面刷新时都会被清除。  
 `reflex-client-persist-var` 将状态存储在 `localStorage` 中，因此其值在重新加载、断线甚至重启后依然存在，从而实现真正的**首屏即时加载（"秒开"）**体验，**无需 WebSocket 往返通信**。
 ## 优势
 1. 持久化：写入浏览器 `localStorage`，数据是持久化落盘存储。适合用户偏好、草稿、缓存等需要长期留存的场景。
@@ -21,7 +21,9 @@
 ```bash
 uv add reflex-client-persist-var
 ```
-> 要求 `reflex >= 0.9.0`
+> 要求 `reflex >= 0.9.0, < 1.0`。本库重度使用 Reflex 0.9 的未公开内部 API
+> （`VarData` / `ArgsFunctionOperationBuilder` / `run_script` / `StateProxy` 等），
+> 升级 Reflex 前请先验证兼容性。
 ## 快速开始
 ```python
 import reflex as rx
@@ -57,14 +59,25 @@ app.add_page(index)
 注意：`PersistentVar` 是 frozen dataclass，必须通过 `PersistentVar.create(...)` 构造，直接 `PersistentVar(key=...)` 会抛出 `TypeError`。
 ### `.value` *(属性)*
 一个在客户端执行 `window.__persist.get(key)` 的 `Var`。可将其绑定到任何组件（包括 children 位置，如 `rx.text(AppNotice.value)`）。首屏直接从 `localStorage` 读取——无需后端参与；键缺失或损坏时返回注册的默认值。默认值会在首帧渲染**之前**同步注册（作为 hook 随访问器注入页面函数体），因此首帧即生效，无需等待挂载。
+
+> **SSR / 预渲染（hydration）**：生产构建（`reflex run --env prod`）默认开启服务端
+> 预渲染。服务器上没有 `localStorage`，因此 SSR 标记中 `value` 呈现为**默认值**；而
+> 客户端首帧 hydration 期间直接读取已持久化的值。两者只有在该 key 从未被写入时才
+> 恰好一致——否则首帧可能出现一次默认值闪现，并伴随一次 React hydration 差异提示
+> （最终以客户端为准，后续渲染一致）。这是"首帧即读"设计的固有取舍；开发模式
+> （默认关闭预渲染）不受影响。
 ### `.set`（属性）/ `.set_value(value=...)`
 一个前端事件链 Var。可附加到触发器上：
 ```python
-rx.input(on_change=UserDraft.set)          # 原样转发事件参数（属性，不加括号）
-rx.button(on_click=ThemeVar.set_value("dark"))   # 写入字面量
+rx.input(on_change=[UserDraft.set, PersistentState.persist_bump])  # 转发事件参数 + 刷新
+rx.button(on_click=[ThemeVar.set_value("dark"), PersistentState.persist_bump])  # 写入字面量 + 刷新
 ```
 > **注意**：`set` 是**属性**而非方法。`on_change=UserDraft.set` 是正确写法；  
 写成 `UserDraft.set()`（带括号）会对返回的 Var 再调用一次，生成非法事件链，编译期抛出 `ValueError: Invalid event chain`。
+> **重要**：`set` / `set_value` 只写 `localStorage`，**不会**产生 React 状态变化——单独
+> 使用时（不带 bump），页面其它位置通过 `.value` 渲染该值的组件不会自动刷新。
+> 需要立即刷新请拼接 `PersistentState.persist_bump`（如上例）。非受控输入框自身的
+> 显示不依赖 bump，但受控输入（`value=var.value`）必须拼接 bump 才能正常输入。
 ### `.push(value, bump=None)`
 从**后端事件处理器**中将 `value` 写入客户端的 `localStorage`。必须使用 `yield` 或 `return`。**重渲染事件（`PersistentState.persist_bump`）会自动追加**到写事件链末尾，写入后页面立即刷新——无需手动传任何事件：
 ```python
@@ -248,12 +261,12 @@ def clear_notice(self):
 2. **刷新时机**：跨标签页数据天然共享，但 UI 不会自动实时刷新——需刷新 / 切换 Tab，或手动监听 `storage` 事件调用 `persist_bump`。
 3. **非安全存储**：数据存储在前端，可被用户篡改，不适合存放敏感数据、权限校验类状态。
 ## 许可证
-Apache-2.0
+本软件以 **Apache License 2.0** 为主体许可，并附加商业授权条款（非商业免费、商业盈利需按日支付授权费）。完整条款见 [LICENSE](LICENSE) 文件。
 ### 致谢
-[reflex](`https://reflex.dev`)  
-[BurdianUI](`https://buridan-ui.reflex.run/`)  
+[reflex](https://reflex.dev)  
+[BurdianUI](https://buridan-ui.reflex.run/)  
 各位帮助到我的AI
-### 许可证附加条款
+### 商业授权附加条款
 - 非商业用途免费：本软件对个人学习、非盈利性组织及未产生任何直接或间接商业收入的使用者完全免费。
 - 盈利行为定义：凡通过本软件（包括但不限于直接使用、二次开发、集成至其他产品或服务中）产生直接或间接收入的行为，均视为商业盈利行为。包括但不限于：销售本软件、销售基于本软件开发的衍生品、利用本软件提供付费服务、利用本软件进行内部运营以降低成本等。
 - 每日授权费：若使用者发生上述盈利行为，有义务向版权所有者（[见下方alipay收款码]）支付商业授权费，标准为：使用者当地350ml可口可乐零售价 / 每个自然日。

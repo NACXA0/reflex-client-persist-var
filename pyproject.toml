@@ -4,10 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "reflex-client-persist-var"
-version = "1.0.0"
+version = "1.0.1"
 description = "Reflex的持久前端状态，由浏览器localStorage支持。首屏即时加载，高频本地写入，以及双向后端推送/拉取。"
 readme = "README.md"
-license = { text = "Apache-2.0" }
+# 许可证：Apache-2.0 为主体，另含商业授权附加条款（见 LICENSE 文件）。
+# 因此不能使用 SPDX 表达式，而是直接指向许可证文件。
+license = { file = "LICENSE" }
 authors = [
     { name = "Luis·Li" },
 ]
@@ -15,7 +17,9 @@ keywords = ["reflex", "reflex-component", "localStorage", "persistent", "state"]
 
 
 # localStorage访问是一个纯Python桥接工具，仅依赖于Reflex本身。
-dependencies = ["reflex"]
+# 本库重度使用 Reflex 0.9 的未公开内部 API（VarData / ArgsFunctionOperationBuilder /
+# run_script / StateProxy 等），升级 Reflex 前请先验证兼容性。
+dependencies = ["reflex>=0.9.0,<1.0"]
 
 [project.urls]
 Homepage = "https://github.com/nacxa0/reflex-client-persist-var"

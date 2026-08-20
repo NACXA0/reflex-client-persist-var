@@ -102,7 +102,8 @@ class PersistentCacheState(rx.State):
         if len(key) > 20 or len(value) > 100:
             yield rx.toast.error("键最长 20 字符，值最长 100 字符")
             return
-        self.draft_dict[key] = value
+        # 不可变更新（整体赋值）比原地突变更可靠，避免个别版本/场景下 UI 不刷新。
+        self.draft_dict = {**self.draft_dict, key: value}
         self.dict_key_input = ""
         self.dict_value_input = ""
         self.armed_dict_tag = ""
@@ -114,7 +115,8 @@ class PersistentCacheState(rx.State):
         """删除字典中的一个键并重新持久化。"""
         if key not in self.draft_dict:
             return
-        del self.draft_dict[key]
+        # 不可变更新（整体赋值）比原地删除更可靠。
+        self.draft_dict = {k: v for k, v in self.draft_dict.items() if k != key}
         self.armed_dict_tag = ""
         yield rx.toast.success(f"已删除键：{key}")
         yield UserDraftDict.push(dict(self.draft_dict))
@@ -145,7 +147,8 @@ class PersistentCacheState(rx.State):
         if len(item) > 100:
             yield rx.toast.error("单个条目最长 100 字符")
             return
-        self.draft_list.append(item)
+        # 不可变更新（整体赋值）比原地 append 更可靠。
+        self.draft_list = [*self.draft_list, item]
         self.list_item_input = ""
         self.armed_list_index = -1
         yield rx.toast.success(f"已添加条目：{item}")
@@ -156,7 +159,9 @@ class PersistentCacheState(rx.State):
         """删除列表中的一个条目并重新持久化。"""
         if not (0 <= index < len(self.draft_list)):
             return
-        item = self.draft_list.pop(index)
+        # 不可变更新（整体赋值）比原地 pop 更可靠。
+        item = self.draft_list[index]
+        self.draft_list = self.draft_list[:index] + self.draft_list[index + 1 :]
         self.armed_list_index = -1
         yield rx.toast.success(f"已删除条目：{item}")
         yield UserDraftList.push(list(self.draft_list))

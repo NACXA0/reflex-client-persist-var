@@ -1,4 +1,0 @@
-reflex>=0.7.0
-# Install the local custom component in editable mode for development:
-#   pip install -e ../
-reflex-pcache @ file:///${PROJECT_ROOT}/..

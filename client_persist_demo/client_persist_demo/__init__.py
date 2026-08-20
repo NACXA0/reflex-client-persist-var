@@ -259,8 +259,17 @@ def value_panel(accent: str, badge_comp: rx.Component, value_comp: rx.Component)
     )
 
 
-def dict_tag(key, value) -> rx.Component:
-    """渲染一个字典 Tag：点击显示/隐藏其删除按钮。"""
+def dict_tag(pair) -> rx.Component:
+    """渲染一个字典 Tag：点击显示/隐藏其删除按钮。
+
+    注意：Reflex 0.9 编译 ``rx.foreach(dict, fn)`` 时，回调实际收到的是
+    ``(元素, 索引)`` 而非 ``(key, value)``——元素即 ``[key, value]`` 数组
+    （编译产物为 ``Object.entries(...).map((elem, idx) => ...)``）。因此这里
+    接收单个 ``pair`` 参数，取 ``pair[0]`` / ``pair[1]`` 作为键与值。若按
+    ``dict_tag(key, value)`` 两个参数写，第二个参数会是索引而非值，导致
+    键值连写（数组被 React 展开）、且 armed 比较恒假、删除按钮永不显示。
+    """
+    key, value = pair[0], pair[1]
     armed = PersistentCacheState.armed_dict_tag == key
     return rx.hstack(
         rx.badge(
@@ -772,7 +781,8 @@ def tip() -> rx.Component:
                 "追加）都会 bump 计数器，产生真实的前端 delta，强制页面重新求值"
                 "所有 PersistentVar.value。若在组件树之外修改了 localStorage"
                 "（如浏览器控制台、其他标签页），需要刷新或切换 Tab 触发重渲染"
-                "才能看到新值。",
+                "才能看到新值。注意：bump 是后端事件，断网时 set 可写入 localStorage"
+                "（数据不丢）但 UI 不会实时刷新，重连 / 刷新后即可见。",
                 size="1",
                 color_scheme="gray",
             ),
@@ -997,7 +1007,7 @@ def scenarios() -> rx.Component:
             "boundary",
             "triangle-alert",
             "能力边界提醒",
-            "容量 · 刷新时机 · 非安全存储",
+            "容量 · 刷新时机 · 离线写入 · 非安全存储",
             rx.vstack(
                 rx.text(
                     "1. localStorage 单域名容量约 5MB，不适合存储大量二进制数据或长列表；",
@@ -1012,6 +1022,12 @@ def scenarios() -> rx.Component:
                 ),
                 rx.text(
                     "3. 数据存储在前端，可被用户篡改，不适合存放敏感数据、权限校验类状态。",
+                    size="1",
+                    color_scheme="gray",
+                ),
+                rx.text(
+                    "4. 断网时 set 仍可写入 localStorage（数据不丢），但 persist_bump 是"
+                    "后端事件、无法送达，UI 不会实时刷新——重连 / 刷新后可见。",
                     size="1",
                     color_scheme="gray",
                 ),

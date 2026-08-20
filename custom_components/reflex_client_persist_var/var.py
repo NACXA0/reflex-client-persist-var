@@ -327,7 +327,10 @@ class PersistentVar(Var):
         注意: 本操作只写 localStorage，不产生 React 状态变化 —— 页面其它位置
             通过 :attr:`value` 渲染该值的组件不会自动刷新。需要立即刷新时请
             拼接一个 bump 事件：``rx.input(on_change=[MyVar.set,
-            PersistentState.persist_bump])``。
+            PersistentState.persist_bump])``。bump 是**后端事件**（依赖
+            WebSocket 连接）：断网时写入仍会成功（数据不丢），但 UI 不会实时
+            刷新，重连 / 刷新后可见。持久化本身（首帧即读、断线不丢）始终离线
+            成立；「写入即所见」以在线为前提。
 
         参数:
             value: 要写入的字面量值。省略（默认）时，把触发事件的参数原样

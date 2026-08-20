@@ -21,7 +21,7 @@
 ```bash
 uv add reflex-client-persist-var
 ```
-> 要求 `reflex >= 0.9.0, < 1.0`。本库重度使用 Reflex 0.9 的未公开内部 API
+> 要求 `reflex >= 0.9.0,`。本库重度使用 Reflex 0.9 的未公开内部 API
 > （`VarData` / `ArgsFunctionOperationBuilder` / `run_script` / `StateProxy` 等），
 > 升级 Reflex 前请先验证兼容性。
 ## 快速开始
@@ -79,9 +79,9 @@ rx.button(on_click=[ThemeVar.set_value("dark"), PersistentState.persist_bump])  
 > 需要立即刷新请拼接 `PersistentState.persist_bump`（如上例）。非受控输入框自身的
 > 显示不依赖 bump，但受控输入（`value=var.value`）必须拼接 bump 才能正常输入。
 >
-> **离线 / 断网边界**：写入路径是纯前端 JS，断网时 `set` / `set_value` 仍可正常写入
+> **离线 / 后端不可用边界**：写入路径是纯前端 JS，后端不可用时 `set` / `set_value` 仍可正常写入
 > `localStorage`（数据不丢）；但 `persist_bump` 是**后端事件**，必须经 WebSocket 送达
-> 服务器、由服务器递增 `persist_rev` 回传 delta 才能驱动重渲染。因此断网期间写入后
+> 服务器、由服务器递增 `persist_rev` 回传 delta 才能驱动重渲染。因此后端不可用期间写入后
 > **UI 不会实时刷新**——重连后刷新页面（或触发任意后端事件）即可见新值。持久化本身
 > （首帧即读、刷新 / 断线不丢）始终离线成立；「写入即所见」以在线为前提。
 ### `.push(value, bump=None)`
@@ -132,22 +132,22 @@ bump 到达后 `persist_rev` 产生真实 delta，订阅组件重渲染，`windo
 >
 > 若在组件树之外修改了 `localStorage`（如浏览器控制台、其他标签页），仍然需要刷新或切换 Tab 才能看到新值——React 不知道外部变化（storage 事件跨标签页由 Reflex 原生处理，但同样只针对 sync var）。
 
-### 离线 / 断网边界（重要）
+### 后端不可用
 
-两条路径的网络依赖不同，决定了库的离线行为：
+两条路径的网络依赖不同，决定了库的后端不可用行为：
 
-- **写入路径（纯前端）**：`set` / `set_value` 编译产物是直接在浏览器执行的 JS 箭头函数，挂到 `on_change` 等触发器后**不经过后端**——断网也能正常写入 `localStorage`。
-- **刷新路径（后端事件）**：`persist_bump` 是 `rx.State` 上的 `@rx.event`，触发必须走 WebSocket：前端发事件 → 后端递增 `persist_rev` → 回传 delta → 订阅组件重渲染。**断网时事件发不出去，没有 delta，UI 不会刷新。**
+- **写入路径（纯前端）**：`set` / `set_value` 编译产物是直接在浏览器执行的 JS 箭头函数，挂到 `on_change` 等触发器后**不经过后端**——后端不可用也能正常写入 `localStorage`。
+- **刷新路径（后端事件）**：`persist_bump` 是 `rx.State` 上的 `@rx.event`，触发必须走 WebSocket：前端发事件 → 后端递增 `persist_rev` → 回传 delta → 订阅组件重渲染。**后端不可用时事件发不出去，没有 delta，UI 不会刷新。**
 
-因此离线时的真实行为：
+因此后端不可用时的真实行为：
 
-| 能力 | 离线时 |
+| 能力 | 后端不可用时 |
 | --- | --- |
 | 写入 `localStorage` | ✅ 成功（数据不丢） |
 | 首帧即读 / 刷新 / 重启后值还在 | ✅ 成立 |
 | 「写入即所见」（UI 实时刷新） | ❌ 失效 |
 
-> **这不是设计缺陷，而是 Reflex 架构的固有约束**：前端组件订阅的是后端 state，React 重渲染只能由后端 delta 驱动（server-driven）。唯一纯前端重渲染路径是 React 本地 `useState`（即 ClientStateVar 的做法），但那会失去「库级共享订阅锚点」——多个组件无法共享同一个计数器。故本库取舍为：**持久化始终离线可用（核心价值），「写入即刷新」以在线为前提（固有边界）**。
+> **这不是设计缺陷，而是 Reflex 架构的固有约束**：前端组件订阅的是后端 state，React 重渲染只能由后端 delta 驱动（server-driven）。唯一纯前端重渲染路径是 React 本地 `useState`（即 ClientStateVar 的做法），但那会失去「库级共享订阅锚点」——多个组件无法共享同一个计数器。故本库取舍为：**持久化始终离线可用（核心价值），「写入即刷新」以后端可用为前提（固有边界）**。
 > 恢复方式：重连后刷新页面，或触发任意后端事件（如再次 bump），值立即呈现。
 ## 健壮性
 所有边缘情况（PRD §7）均在注入的 JS 中处理：
@@ -284,7 +284,7 @@ def clear_notice(self):
 1. **容量**：`localStorage` 单域名容量约 5MB，不适合存储大量二进制数据或长列表。
 2. **刷新时机**：跨标签页数据天然共享，但 UI 不会自动实时刷新——需刷新 / 切换 Tab，或手动监听 `storage` 事件调用 `persist_bump`。
 3. **非安全存储**：数据存储在前端，可被用户篡改，不适合存放敏感数据、权限校验类状态。
-4. **离线写入**：断网时 `set` 仍可写入 `localStorage`（数据不丢），但 `persist_bump` 是后端事件、无法送达，UI 不会实时刷新——重连 / 刷新后可见（详见上文「离线 / 断网边界」）。
+4. **后端不可用时写入**：后端不可用时 `set` 仍可写入 `localStorage`（数据不丢），但 `persist_bump` 是后端事件、无法送达，UI 不会实时刷新——重连 / 刷新后可见（详见上文「离线 / 后端不可用边界」）。
 ## 许可证
 本软件以 **Apache License 2.0** 为主体许可，并附加商业授权条款（非商业免费、商业盈利需按日支付授权费）。完整条款见 [LICENSE](LICENSE) 文件。
 ### 致谢
